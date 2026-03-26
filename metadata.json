@@ -1,0 +1,5 @@
+{
+  "name": "Minor_project2",
+  "description": "AI-Powered Social Listening & Sentiment Analysis Dashboard. Fetches comments and uses Gemini to categorize, analyze sentiment, and detect urgency.",
+  "requestFramePermissions": []
+}
