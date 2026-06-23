@@ -7,10 +7,9 @@ interface Props {
   isLoading: boolean;
   alertsCount: number;
   onOpenAlerts: () => void;
-  onLogout?: () => void;
 }
 
-const Header: React.FC<Props> = ({ onSearch, isLoading, alertsCount, onOpenAlerts, onLogout }) => {
+const Header: React.FC<Props> = ({ onSearch, isLoading, alertsCount, onOpenAlerts }) => {
   const [query, setQuery] = useState('');
   const [source, setSource] = useState<Source>('YouTube');
 
@@ -107,15 +106,6 @@ const Header: React.FC<Props> = ({ onSearch, isLoading, alertsCount, onOpenAlert
                 >
                   {isLoading ? 'Scanning...' : 'Analyze'}
                 </button>
-                {onLogout && (
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all"
-                  >
-                    Logout
-                  </button>
-                )}
             </div>
           </form>
 
