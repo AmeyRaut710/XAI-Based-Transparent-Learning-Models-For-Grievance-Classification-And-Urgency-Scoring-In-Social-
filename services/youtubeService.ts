@@ -1,6 +1,6 @@
 import { Source } from '../types';
 
-const API_KEY = 'AIzaSyBTnKmdepRgXvf6C35NTfw_qBEJlfFmtQE';
+const API_KEY = 'AIzaSyCxcUDX4RNNDnPGLhD0XcbEmK0WMeVxmVM';
 const BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
 interface VideoItem {
@@ -57,7 +57,7 @@ export const fetchYouTubeData = async (query: string): Promise<RawData[]> => {
     const randomOrder = orders[Math.floor(Math.random() * orders.length)];
     
     const searchContext = `"${query}" India complaints consumer grievances problems issues`;
-    const searchUrl = `${BASE_URL}/search?part=snippet&q=${encodeURIComponent(searchContext)}&type=video&maxResults=8&order=${randomOrder}&key=${API_KEY}`;
+    const searchUrl = `${BASE_URL}/search?part=snippet&q=${encodeURIComponent(searchContext)}&type=video&maxResults=10&order=${randomOrder}&key=${API_KEY}`;
     
     const searchRes = await fetch(searchUrl);
     if (!searchRes.ok) throw new Error(`YouTube API Error: ${searchRes.status}`);
@@ -74,7 +74,7 @@ export const fetchYouTubeData = async (query: string): Promise<RawData[]> => {
       const videoTitle = video.snippet.title;
       const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
       
-      const commentsUrl = `${BASE_URL}/commentThreads?part=snippet&videoId=${videoId}&maxResults=15&order=relevance&textFormat=plainText&key=${API_KEY}`;
+      const commentsUrl = `${BASE_URL}/commentThreads?part=snippet&videoId=${videoId}&maxResults=30&order=relevance&textFormat=plainText&key=${API_KEY}`;
       
       try {
         const commentRes = await fetch(commentsUrl);
@@ -99,7 +99,7 @@ export const fetchYouTubeData = async (query: string): Promise<RawData[]> => {
     // Shuffle the final list to ensure different comments are analyzed first
     const shuffledData = filtered.sort(() => Math.random() - 0.5);
     
-    return shuffledData.length > 0 ? shuffledData.slice(0, 40) : generateFallbackYoutubeData(query);
+    return shuffledData.length > 0 ? shuffledData.slice(0, 200) : generateFallbackYoutubeData(query);
 
   } catch (error) {
     return generateFallbackYoutubeData(query);

@@ -3,66 +3,95 @@ interface RawData {
   url: string;
 }
 
+const CLIENT_ID = 'WlTdc59SbSHSVSqf7OWoRrkA';
+const CLIENT_SECRET = 'FAbyunYKm7YMC679_HbZ97qkz6grjqw';
+const USER_AGENT = 'CivicComplaintAnalyzer by u/DashingKaal';
+const SUBREDDIT = 'india';
+
+let accessToken: string | null = null;
+let tokenExpiresAt: number = 0;
+
+const getRedditToken = async (): Promise<string> => {
+  if (accessToken && Date.now() < tokenExpiresAt) {
+    return accessToken;
+  }
+
+  const credentials = btoa(`${CLIENT_ID}:${CLIENT_SECRET}`);
+  
+  const response = await fetch('https://www.reddit.com/api/v1/access_token', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${credentials}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': USER_AGENT
+    },
+    body: 'grant_type=client_credentials'
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch Reddit access token');
+  }
+
+  const data = await response.json();
+  accessToken = data.access_token;
+  tokenExpiresAt = Date.now() + (data.expires_in * 1000) - 60000; // 1 min buffer
+  return accessToken!;
+};
+
 const generateFallbackRedditData = (query: string): RawData[] => {
   const q = query.trim();
   const formattedQ = q.charAt(0).toUpperCase() + q.slice(1);
-
-  const texts = [
-    `[Source: r/India] Thread: "Why is ${formattedQ} so dysfunctional?" - "I have been calling their helpline for 3 days. Every time they say the system is updated but the problem remains. Frustrated!"`,
-    `[Source: r/Bangalore] Thread: "Rant about ${formattedQ} behavior" - "The staff at the ${formattedQ} office are incredibly rude. They behave like they are doing us a favor by providing a paid service."`,
-    `[Source: r/Delhi] Thread: "Beware of ${formattedQ} scams" - "I got a message about ${formattedQ} KYC expiring. It turned out to be a scam. The company needs to secure our data better."`,
-    `[Source: r/LegalAdviceIndia] Thread: "Help with ${formattedQ} deficiency in service" - "My ${formattedQ} application was rejected without any valid reason. Can I take this to the consumer court?"`,
-    `[Source: r/India] Thread: "Corruption in ${formattedQ} department" - "The local officer asked for 2000 rupees bribe to process my ${formattedQ} request. This is the reality of our systems."`,
-    `[Source: r/Mumbai] Thread: "The state of ${formattedQ} in our ward" - "Every week there is an outage for ${formattedQ}. We are paying premium rates for third-class service."`,
-    `[Source: r/India] Thread: "My successful ${formattedQ} experience" - "Surprising but true, my ${formattedQ} issue was resolved in 24 hours after I tagged their nodal officer on social media."`,
-    `[Source: r/Hyderabad] Thread: "Is ${formattedQ} down for everyone?" - "Yes, ${formattedQ} portal has been unresponsive since morning. They don't even have a status page to inform users."`,
-    `[Source: r/India] Thread: "Price hike in ${formattedQ} is unjustified" - "They just increased the charges for ${formattedQ} by 20%. Where is the improvement in quality? Only profit-making."`,
-    `[Source: r/India] Thread: "Kudos to ${formattedQ} support team" - "A staff member named Rajesh at the ${formattedQ} branch went out of his way to help me. Rare to see such dedication."`
-  ];
-
-  return texts
-    .sort(() => Math.random() - 0.5)
-    .map(text => ({ text, url: 'https://www.reddit.com' }));
+  return [
+    { text: `[Source: r/India] Thread: "Why is ${formattedQ} so dysfunctional?" - "I have been calling their helpline for 3 days. Every time they say the system is updated but the problem remains. Frustrated!"`, url: 'https://www.reddit.com' },
+    { text: `[Source: r/India] Thread: "Rant about ${formattedQ} behavior" - "The staff at the ${formattedQ} office are incredibly rude. They behave like they are doing us a favor by providing a paid service."`, url: 'https://www.reddit.com' },
+    { text: `[Source: r/India] Thread: "Is ${formattedQ} down for everyone?" - "Yes, ${formattedQ} portal has been unresponsive since morning. They don't even have a status page to inform users."`, url: 'https://www.reddit.com' },
+  ].sort(() => Math.random() - 0.5);
 };
 
 export const fetchRedditData = async (query: string): Promise<RawData[]> => {
   try {
-    // Randomize sorting to ensure fresh threads on every search
-    const sorts = ['relevance', 'top', 'new', 'comments'];
-    const randomSort = sorts[Math.floor(Math.random() * sorts.length)];
+    const token = await getRedditToken();
+    const searchContext = `${query} (rant OR complaint OR problem OR issue OR scam OR bad OR terrible OR rude)`;
     
-    const searchContext = `${query} India (rant OR complaint OR problem OR issue OR scam OR bad OR terrible OR rude)`;
-    const targetUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(searchContext)}&sort=${randomSort}&limit=12&t=all`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&disableCache=true`;
+    // Using limit=100 as rate limit targets up to 200 total (we will grab up to 100 threads, which can yield many comments)
+    const targetUrl = `https://oauth.reddit.com/r/${SUBREDDIT}/search.json?q=${encodeURIComponent(searchContext)}&sort=relevance&limit=50&restrict_sr=on`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const response = await fetch(proxyUrl, { signal: controller.signal });
-    if (!response.ok) throw new Error(`Proxy Error: ${response.status}`);
+    const response = await fetch(targetUrl, { 
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'User-Agent': USER_AGENT
+      }
+    });
 
-    const proxyData = await response.json();
-    if (!proxyData.contents) throw new Error("No data from proxy");
+    if (!response.ok) throw new Error(`Reddit API Error: ${response.status}`);
 
-    const redditData = JSON.parse(proxyData.contents);
+    const redditData = await response.json();
     const posts = redditData.data?.children || [];
 
     if (posts.length === 0) return generateFallbackRedditData(query);
 
     const commentPromises = posts.map(async (post: any) => {
-      const permalink = post.data.permalink;
-      const subreddit = post.data.subreddit_name_prefixed;
+      const postId = post.data.id;
       const postTitle = post.data.title;
-      const postUrl = `https://www.reddit.com${permalink}`;
+      const postUrl = `https://www.reddit.com${post.data.permalink}`;
       
-      const commentsUrl = `https://www.reddit.com${permalink}.json?sort=confidence&limit=10`;
-      const commentsProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(commentsUrl)}&disableCache=true`;
+      const commentsUrl = `https://oauth.reddit.com/r/${SUBREDDIT}/comments/${postId}.json?sort=confidence&limit=5`;
 
       try {
-        const cRes = await fetch(commentsProxyUrl, { signal: controller.signal });
+        const cRes = await fetch(commentsUrl, { 
+          signal: controller.signal,
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'User-Agent': USER_AGENT
+          }
+        });
         if (!cRes.ok) return [];
-        const cProxyData = await cRes.json();
-        const cData = JSON.parse(cProxyData.contents);
+        
+        const cData = await cRes.json();
         
         if (!Array.isArray(cData) || cData.length < 2) return [];
         
@@ -71,10 +100,9 @@ export const fetchRedditData = async (query: string): Promise<RawData[]> => {
         return comments
           .filter((c: any) => c.kind === 't1' && c.data.body && c.data.body.length > 30)
           .map((c: any) => ({
-            text: `[Subreddit: ${subreddit}] Subject: ${postTitle} - User says: "${c.data.body.substring(0, 500)}"`,
+            text: `[Subreddit: r/${SUBREDDIT}] Subject: ${postTitle} - User says: "${c.data.body.substring(0, 500)}"`,
             url: postUrl
           }));
-
       } catch (err) {
         return [];
       }
@@ -87,14 +115,15 @@ export const fetchRedditData = async (query: string): Promise<RawData[]> => {
     
     if (allData.length === 0) {
        return posts.map((child: any) => ({
-        text: `[Source: ${child.data.subreddit_name_prefixed}] Post: "${child.data.title}"`,
+        text: `[Source: r/${SUBREDDIT}] Post: "${child.data.title}"`,
         url: `https://www.reddit.com${child.data.permalink}`
        }));
     }
 
-    return allData.slice(0, 40);
+    return allData.slice(0, 200);
 
   } catch (error) {
+    console.error('Reddit fetching error:', error);
     return generateFallbackRedditData(query);
   }
 };

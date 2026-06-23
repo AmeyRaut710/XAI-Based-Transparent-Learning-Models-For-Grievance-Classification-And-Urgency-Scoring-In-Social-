@@ -1,12 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import AlertsModal from './components/AlertsModal';
 import Dashboard from './components/Dashboard';
 import Header from './components/Header';
-import { analyzeComments } from './services/geminiService';
+import Login from './components/Login';
+import { analyzeComments } from './services/localAnalysisService';
 import { fetchMockComments } from './services/mockDataService';
 import { fetchRedditData } from './services/redditService';
 import { fetchYouTubeData } from './services/youtubeService';
 import { AnalysisResult, Source, Urgency } from './types';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { auth } from './services/firebase';
 
 const App: React.FC = () => {
   const [data, setData] = useState<AnalysisResult[]>([]);
@@ -14,10 +17,27 @@ const App: React.FC = () => {
   const [currentTopic, setCurrentTopic] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+  
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const alerts = useMemo(() => {
     return data.filter(item => item.urgency === Urgency.High);
   }, [data]);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    setData([]);
+    setCurrentTopic('');
+  };
 
   const handleSearch = async (query: string, source: Source) => {
     setIsLoading(true);
@@ -46,7 +66,6 @@ const App: React.FC = () => {
         throw new Error(`No data found for "${query}" on ${source}.`);
       }
       
-      // Pass the query as the third argument for relevance filtering
       const analyzedResults = await analyzeComments(rawData, source, query);
       setData(analyzedResults);
 
@@ -63,6 +82,18 @@ const App: React.FC = () => {
     }
   };
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLoginSuccess={() => {}} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
       <Header 
@@ -70,6 +101,7 @@ const App: React.FC = () => {
         isLoading={isLoading} 
         alertsCount={alerts.length}
         onOpenAlerts={() => setIsAlertsOpen(true)}
+        onLogout={handleLogout}
       />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
