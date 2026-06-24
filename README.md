@@ -9,7 +9,7 @@
     An AI-driven dashboard that aggregates and analyzes civic and consumer grievances from social platforms (YouTube, Reddit). It automatically classifies text by sentiment, category, and urgency to help organizations quickly identify and resolve high-priority issues.
   </p>
 
-  **[View Live Demo 🚀](https://amey710minor.vercel.app/)**
+  **[View Live Demo 🚀]([https://amey710minor.vercel.app/](https://amey710minor.vercel.app?_vercel_share=lblGkneeoVbJRU7e3CIg4YeyCF6Vriz5))**
 </div>
 
 ---
